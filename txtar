@@ -5,14 +5,11 @@ pack () {
     # if $2 is provided, will output to a file 
     [ "$#" -gt 1 ] && printf '%s\n' "pack: too many arguments" && exit 1 
     if [ "$1" ]; then
-        for f in "$1"/*; do
-            [ -e "$1" ] || exit 1
-            [ -L "$1" ] && printf '%s\n' skipping symlink && continue
-            printf '%s\n' "$f"
-        done
+        find "$1"
     else
         cat
     fi | while read -r file; do
+        [ -d "$file" ] && continue
         printf '%s\n' "-- $file --"
         cat "$file"
     done
