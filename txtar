@@ -1,13 +1,13 @@
 #!/bin/sh -e
 
 pack () {
-    [ "$#" -gt 1 ] && printf '%s\n' "pack: too many arguments" && exit 1 
     # takes a list of files on stdin, or iterates provided directory on $1
     # if $2 is provided, will output to a file 
+    [ "$#" -gt 1 ] && printf '%s\n' "pack: too many arguments" && exit 1 
     if [ "$1" ]; then
         for f in "$1"/*; do
             [ -e "$1" ] || exit 1
-            [ -L "$1" ] && printf '%s\n' skipping symlink 
+            [ -L "$1" ] && printf '%s\n' skipping symlink && continue
             printf '%s\n' "$f"
         done
     else
