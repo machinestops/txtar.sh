@@ -1,0 +1,101 @@
+#!/bin/sh -e
+
+pack () {
+    [ "$#" -gt 1 ] && printf '%s\n' "pack: too many arguments" && exit 1 
+    # takes a list of files on stdin, or iterates provided directory on $1
+    # if $2 is provided, will output to a file 
+    if [ "$1" ]; then
+        for f in "$1"/*; do
+            [ -e "$1" ] || exit 1
+            [ -L "$1" ] && printf '%s\n' skipping symlink 
+            printf '%s\n' "$f"
+        done
+    else
+        cat
+    fi | while read -r file; do
+        printf '%s\n' "-- $file --"
+        cat "$file"
+    done
+}
+
+unpack () {
+    # takes an archive on stdin and optionally a directory as $1
+    # will create and unpack stdin in PWD or $1 if provided
+    [ "$#" -gt 1 ] && printf '%s\n' "unpack: too many arguments" && exit 1 
+    if [ "$1" ]; then
+        if ! mkdir -p "$1"; then
+            printf '%s\n' "couldn't create directory $1"
+            exit 1
+        else
+            cd "$1"
+        fi
+    fi
+
+    reading_body=""    
+    while IFS='' read -r line; do
+            case $line in
+                '-- '*' --')
+                    reading_body=yes
+                    if [ "$reading_body" ]; then
+                        filename=${line#--}
+                        filename=${filename%--}
+                        # trim_string from https://github.com/dylanaraps/pure-sh-bible
+                        filename=${filename#${filename%%[![:space:]]*}}
+                        filename=${filename%${filename##*[![:space:]]}}
+                        case $filename in
+                            */*)
+                                mkdir -p "${filename%/*}"
+                            ;;
+                        esac
+                        :>"$filename"
+                    fi
+                ;;
+                *)
+                    [ "$reading_body" ] && printf '%s\n' "$line" >> "$filename"
+            esac
+    done
+}
+
+main () {
+    case $1 in
+        pack)
+            shift 1
+            pack "$@"
+        ;;
+        unpack)
+            shift 1
+            unpack "$@"
+        ;;
+        *)
+            cat << EOF
+${0##*/}: txtar utility
+Usage:
+    ${0##*/} pack    [dir] < filenames
+        '${0##*/} pack' takes a list of filenames on stdin, or a directory as \$1,
+        and produces a txtar archive on stdout.
+    ${0##*/} unpack  [dir] < file
+        '${0##*/} unpack' takes a txtar archive on stdin, and unpacks it into
+        the current directory, or the directory optionally provided as \$1.
+        \$1 will be created if it doesn't exist.
+
+Txtar format:
+    A txtar archive is zero or more comment lines and then a sequence of file entries.
+    Each file entry begins with a file marker line of the form "-- FILENAME --"
+    and is followed by zero or more file content lines making up the file data.
+    The comment or file content ends at the next file marker line.
+    The file marker line must begin with the three-byte sequence "-- "
+    and end with the three-byte sequence " --", but the enclosed
+    file name can be surrounding by additional white space,
+    all of which is stripped.
+
+    If the txtar file is missing a trailing newline on the final line,
+    parsers should consider a final newline to be present anyway.
+
+    There are no possible syntax errors in a txtar archive.
+
+This program assumes filenames are POSIX 2024 compliant: without newlines.
+EOF
+    esac
+}
+
+main "$@"
